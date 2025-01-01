@@ -7,8 +7,15 @@ const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
 const REDIRECT_URI = import.meta.env.VITE_SPOTIFY_REDIRECT_URI;
 const CLIENT_SECRET = import.meta.env.VITE_SPOTIFY_CLIENT_SECRET;
 
+interface Playlist {
+  id: string;
+  name: string;
+  images: Array<{ url: string }>;
+}
+
 const App = () => {
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
 
   useEffect(() => {
     // Check if the URL has a code parameter (after user logs in)
@@ -46,16 +53,22 @@ const App = () => {
     window.location.href = generateAuthUrl();
   };
 
-  const fetchUserProfile = async () => {
+  const fetchPlaylists = async () => {
     if (accessToken) {
-      const response = await axios.get("https://api.spotify.com/v1/me", {
+      const response = await axios.get("https://api.spotify.com/v1/me/playlists", {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
       });
-      console.log("User profile:", response.data);
+      setPlaylists(response.data.items); // Get the playlists from the response
     }
   };
+
+  useEffect(() => {
+    if (accessToken) {
+      fetchPlaylists(); // Fetch playlists after accessToken is set
+    }
+  }, [accessToken]);
 
   return (
     <div className="App">
@@ -63,7 +76,23 @@ const App = () => {
       {accessToken ? (
         <>
           <p>Authenticated successfully!</p>
-          <button onClick={fetchUserProfile}>Fetch User Profile</button>
+          <div>
+            <h2>Your Playlists</h2>
+            <div className="playlist-container">
+              {playlists.map((playlist) => (
+                <div key={playlist.id} className="playlist-item">
+                  {playlist.images.length > 0 && (
+                    <img
+                      src={playlist.images[0].url}
+                      alt={playlist.name}
+                      className="playlist-image"
+                    />
+                  )}
+                  <h3>{playlist.name}</h3>
+                </div>
+              ))}
+            </div>
+          </div>
         </>
       ) : (
         <button onClick={handleLoginClick}>Login with Spotify</button>
