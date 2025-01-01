@@ -17,6 +17,7 @@ const App = () => {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [player, setPlayer] = useState<any>(null); // Spotify Player instance
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
+  const [deviceId, setDeviceId] = useState<string | null>(null);
 
   useEffect(() => {
     // Dynamically load the Spotify Web Playback SDK script
@@ -110,6 +111,7 @@ const App = () => {
     newPlayer.on("ready", (data: any) => {
       console.log("The Web Playback SDK is ready");
       setPlayer(newPlayer);
+      setDeviceId(data.device_id);  // Store the device_id for later use
     });
 
     newPlayer.connect();
@@ -128,6 +130,28 @@ const App = () => {
   const togglePlayPause = () => {
     if (player) {
       player.togglePlay();
+    }
+  };
+
+  const transferPlayback = async () => {
+    if (deviceId && accessToken) {
+      try {
+        await axios.put(
+          `https://api.spotify.com/v1/me/player`,
+          {
+            device_ids: [deviceId],
+            play: true,
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
+        console.log("Playback transferred to the Web Playback SDK device.");
+      } catch (error) {
+        console.error("Error transferring playback:", error);
+      }
     }
   };
 
@@ -163,6 +187,7 @@ const App = () => {
                 <button onClick={togglePlayPause}>Play/Pause</button>
               </div>
             )}
+            <button onClick={transferPlayback}>Transfer Playback to Web Player</button>
           </div>
         </>
       ) : (
