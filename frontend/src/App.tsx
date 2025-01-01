@@ -1,5 +1,4 @@
-// src/App.tsx
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { generateAuthUrl } from "./SpotifyAuth";
 import axios from "axios";
 
@@ -16,14 +15,27 @@ interface Playlist {
 const App = () => {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [player, setPlayer] = useState<any>(null); // Spotify Player instance
+  const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
 
   useEffect(() => {
-    // Check if the URL has a code parameter (after user logs in)
+    // Dynamically load the Spotify Web Playback SDK script
+    const script = document.createElement("script");
+    script.src = "https://sdk.scdn.co/spotify-player.js";
+    script.async = true;
+    script.onload = () => {
+      console.log("Spotify Web Playback SDK loaded");
+      initializePlayer();  // Initialize player once the SDK is loaded
+    };
+    script.onerror = (error) => {
+      console.error("Error loading Spotify Web Playback SDK", error);
+    };
+    document.body.appendChild(script);
+
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get("code");
 
     if (code) {
-      // Exchange the code for an access token
       exchangeCodeForToken(code);
     }
   }, []);
@@ -49,7 +61,6 @@ const App = () => {
   };
 
   const handleLoginClick = () => {
-    // Redirect to Spotify login page
     window.location.href = generateAuthUrl();
   };
 
@@ -60,15 +71,65 @@ const App = () => {
           Authorization: `Bearer ${accessToken}`,
         },
       });
-      setPlaylists(response.data.items); // Get the playlists from the response
+      setPlaylists(response.data.items);
     }
   };
 
   useEffect(() => {
     if (accessToken) {
-      fetchPlaylists(); // Fetch playlists after accessToken is set
+      fetchPlaylists();
     }
   }, [accessToken]);
+
+  const initializePlayer = () => {
+    if (typeof window.Spotify === "undefined") {
+      console.error("Spotify Web Playback SDK is not loaded properly");
+      return;
+    }
+
+    const newPlayer = new window.Spotify.Player({
+      name: "Web Playback SDK",
+      getOAuthToken: (cb: Function) => {
+        cb(accessToken);
+      },
+      volume: 0.5,
+    });
+
+    newPlayer.on("initialization_error", (e: any) => {
+      console.error(e);
+    });
+
+    newPlayer.on("authentication_error", (e: any) => {
+      console.error(e);
+    });
+
+    newPlayer.on("player_state_changed", (state: any) => {
+      console.log(state);
+    });
+
+    newPlayer.on("ready", (data: any) => {
+      console.log("The Web Playback SDK is ready");
+      setPlayer(newPlayer);
+    });
+
+    newPlayer.connect();
+  };
+
+  const handlePlaylistSelect = (playlist: Playlist) => {
+    setSelectedPlaylist(playlist);
+    if (player) {
+      player.resume();
+      player.play({
+        uris: [`spotify:playlist:${playlist.id}`],
+      });
+    }
+  };
+
+  const togglePlayPause = () => {
+    if (player) {
+      player.togglePlay();
+    }
+  };
 
   return (
     <div className="App">
@@ -80,7 +141,11 @@ const App = () => {
             <h2>Your Playlists</h2>
             <div className="playlist-container">
               {playlists.map((playlist) => (
-                <div key={playlist.id} className="playlist-item">
+                <div
+                  key={playlist.id}
+                  className="playlist-item"
+                  onClick={() => handlePlaylistSelect(playlist)}
+                >
                   {playlist.images.length > 0 && (
                     <img
                       src={playlist.images[0].url}
@@ -92,6 +157,12 @@ const App = () => {
                 </div>
               ))}
             </div>
+            {selectedPlaylist && (
+              <div>
+                <h3>Now Playing: {selectedPlaylist.name}</h3>
+                <button onClick={togglePlayPause}>Play/Pause</button>
+              </div>
+            )}
           </div>
         </>
       ) : (
